@@ -1,0 +1,15 @@
+{
+  "mode": "agent_memory",
+  "action": "write",
+  "agent_id": "research-agent",
+  "task_id": "pinecone-memory-ci",
+  "memory_type": "episodic",
+  "title": "CodePipeline Pinecone Memory Task",
+  "content": "The agent deployed an AWS Lambda Function URL through CodePipeline, used OpenAI embeddings, stored task memory in Pinecone, and verified retrieval for future AI agent context.",
+  "query": "What did the agent verify during the CodePipeline Pinecone memory task?",
+  "top_k": 3,
+  "metadata": {
+    "environment": "ci",
+    "project": "awspineconememoryforaiagents"
+  }
+}

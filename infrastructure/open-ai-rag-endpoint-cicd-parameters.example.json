@@ -1,7 +1,7 @@
 [
   {
     "ParameterKey": "ProjectName",
-    "ParameterValue": "open-ai-rag"
+    "ParameterValue": "open-ai-agentic-rag"
   },
   {
     "ParameterKey": "ArtifactBucketName",
@@ -20,11 +20,27 @@
     "ParameterValue": "main"
   },
   {
-    "ParameterKey": "DeployEnvironment",
-    "ParameterValue": "staging"
-  },
-  {
     "ParameterKey": "OpenAIApiKeySecretArn",
     "ParameterValue": "arn:aws:secretsmanager:us-west-1:659613508664:secret:openai/api-key-6BGXhJ"
+  },
+  {
+    "ParameterKey": "PineconeApiKeySecretArn",
+    "ParameterValue": "arn:aws:secretsmanager:us-west-1:659613508664:secret:awspineconeapikey1-kiudra"
+  },
+  {
+    "ParameterKey": "PineconeIndexName",
+    "ParameterValue": "news-demo"
+  },
+  {
+    "ParameterKey": "PineconeIndexHost",
+    "ParameterValue": "https://news-demo-4fe9eo0.svc.aped-4627-b74a.pinecone.io"
+  },
+  {
+    "ParameterKey": "PineconeNamespace",
+    "ParameterValue": "news"
+  },
+  {
+    "ParameterKey": "PineconeMemoryNamespace",
+    "ParameterValue": "agent-memory"
   }
 ]

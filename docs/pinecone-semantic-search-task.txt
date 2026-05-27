@@ -1,18 +1,21 @@
-Pinecone Semantic Search And Recommendation Systems Task Runbook
-===============================================================
+Pinecone Semantic Search, Recommendations, And Agent Memory Runbook
+===================================================================
 
 Purpose
 -------
 Use Pinecone as the vector database for semantic search in the AWS OpenAI RAG
 real-time endpoint deployed through CodePipeline. The endpoint also runs a
 recommendation systems task by embedding a seed item, seed text, or user
-interest profile and returning the closest Pinecone records.
+interest profile and returning the closest Pinecone records. For AI agents, the
+endpoint can also write task memories into Pinecone and recall them later with
+semantic search.
 
 Pinecone Index
 --------------
 Index name: news-demo
 Host: https://news-demo-4fe9eo0.svc.aped-4627-b74a.pinecone.io
 Namespace: news
+Memory namespace: agent-memory
 Cloud: aws
 Region: us-east-1
 Type: Dense
@@ -36,6 +39,7 @@ PINECONE_API_KEY_SECRET_ARN=arn:aws:secretsmanager:us-west-1:659613508664:secret
 PINECONE_INDEX_NAME=news-demo
 PINECONE_INDEX_HOST=https://news-demo-4fe9eo0.svc.aped-4627-b74a.pinecone.io
 PINECONE_NAMESPACE=news
+PINECONE_MEMORY_NAMESPACE=agent-memory
 PINECONE_CLOUD=aws
 PINECONE_REGION=us-east-1
 PINECONE_DIMENSION=1536
@@ -76,6 +80,34 @@ You can also use a Pinecone record as the seed when you already know its id:
   "top_k": 5
 }
 
+Pinecone Memory For AI Agents Task
+----------------------------------
+Use this request body to store a durable agent memory in Pinecone. The endpoint
+embeds the memory with OpenAI, upserts it to the agent-memory namespace, and can
+immediately recall related memories when query is included.
+
+{
+  "mode": "agent_memory",
+  "action": "write",
+  "agent_id": "research-agent",
+  "task_id": "pinecone-memory-ci",
+  "memory_type": "episodic",
+  "title": "CodePipeline Pinecone Memory Task",
+  "content": "The agent deployed an AWS Lambda Function URL through CodePipeline, used OpenAI embeddings, stored task memory in Pinecone, and verified retrieval for future AI agent context.",
+  "query": "What did the agent verify during the CodePipeline Pinecone memory task?",
+  "top_k": 3
+}
+
+To recall memories without writing a new one:
+
+{
+  "mode": "agent_memory",
+  "action": "search",
+  "agent_id": "research-agent",
+  "query": "What did the agent verify during deployment?",
+  "top_k": 3
+}
+
 Curl Test
 ---------
 Replace ENDPOINT_URL with the CloudFormation output named EndpointUrl:
@@ -88,6 +120,10 @@ curl -X POST "$ENDPOINT_URL" ^
   -H "content-type: application/json" ^
   -d @samples/pinecone_recommendations_request.json
 
+curl -X POST "$ENDPOINT_URL" ^
+  -H "content-type: application/json" ^
+  -d @samples/pinecone_agent_memory_request.json
+
 Expected Response Fields
 ------------------------
 For semantic search, retrieved_context contains ranked Pinecone matches,
@@ -97,12 +133,17 @@ For recommendation requests, recommendations contains ranked similar records,
 including id, title, content, score, and metadata. When seed_id is used, the
 seed record is excluded from the returned recommendations.
 
+For agent_memory write requests, stored_memory contains the Pinecone memory id,
+namespace, and metadata. When query is included, memories contains ranked memory
+matches from the agent-memory namespace.
+
 CodePipeline Behavior
 ---------------------
 The endpoint deployment buildspec runs Pinecone semantic search and
 recommendation systems smoke tests after CloudFormation deploys the Lambda
-Function URL. The smoke tests succeed when retrieval_source is "pinecone" and
-the relevant result list contains at least one match.
+Function URL. It also runs the Pinecone memory for AI agents task. The smoke
+tests succeed when retrieval_source is "pinecone", the relevant result list
+contains at least one match, and an agent memory id is returned.
 
 Troubleshooting
 ---------------

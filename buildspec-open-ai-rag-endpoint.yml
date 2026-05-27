@@ -13,6 +13,7 @@ env:
     PINECONE_INDEX_NAME: news-demo
     PINECONE_INDEX_HOST: https://news-demo-4fe9eo0.svc.aped-4627-b74a.pinecone.io
     PINECONE_NAMESPACE: news
+    PINECONE_MEMORY_NAMESPACE: agent-memory
 
 phases:
   install:
@@ -46,6 +47,7 @@ phases:
             PineconeIndexName="$PINECONE_INDEX_NAME" \
             PineconeIndexHost="$PINECONE_INDEX_HOST" \
             PineconeNamespace="$PINECONE_NAMESPACE" \
+            PineconeMemoryNamespace="$PINECONE_MEMORY_NAMESPACE" \
             OpenAIModel="$OPENAI_MODEL"
       - aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs" --output table
       - ENDPOINT_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='EndpointUrl'].OutputValue | [0]" --output text)
@@ -53,6 +55,8 @@ phases:
       - python -c "import json; body=json.load(open('pinecone-semantic-search-response.json')); assert body.get('retrieval_source') == 'pinecone' and body.get('retrieved_context'), body; print('Pinecone semantic search task passed')"
       - 'curl -sS -f -X POST "$ENDPOINT_URL" -H "content-type: application/json" -d @samples/pinecone_recommendations_request.json -o pinecone-recommendations-response.json'
       - python -c "import json; body=json.load(open('pinecone-recommendations-response.json')); assert body.get('retrieval_source') == 'pinecone' and body.get('recommendations'), body; print('Pinecone recommendation systems task passed')"
+      - 'curl -sS -f -X POST "$ENDPOINT_URL" -H "content-type: application/json" -d @samples/pinecone_agent_memory_request.json -o pinecone-agent-memory-response.json'
+      - python -c "import json; body=json.load(open('pinecone-agent-memory-response.json')); assert body.get('namespace') == 'agent-memory' and body.get('stored_memory', {}).get('memory_id'), body; print('Pinecone memory for AI agents task passed')"
       - 'curl -sS -f -X POST "$ENDPOINT_URL" -H "content-type: application/json" -d @samples/open_ai_rag_endpoint_request.json -o open-ai-agentic-rag-endpoint-smoke-response.json'
       - python -c "import json; body=json.load(open('open-ai-agentic-rag-endpoint-smoke-response.json')); assert body.get('answer') and len(body.get('agents', [])) == 3, body; print('OpenAI multi-agent RAG endpoint smoke test passed')"
 
@@ -61,5 +65,6 @@ artifacts:
     - open-ai-agentic-rag-endpoint.zip
     - pinecone-semantic-search-response.json
     - pinecone-recommendations-response.json
+    - pinecone-agent-memory-response.json
     - open-ai-agentic-rag-endpoint-smoke-response.json
 

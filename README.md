@@ -7,6 +7,22 @@ It now includes two deployable endpoint paths:
 1. `rag_endpoint/`: a multi-agent OpenAI RAG Lambda Function URL that retrieves from a plain text knowledge file and applies multiple agents before returning an answer.
 2. `agentic_endpoint/`: an agentic hospital RAG Lambda Function URL that retrieves hospital context, runs three OpenAI agents, and returns a structured care-coordination inference.
 
+## Duplicate and Similarity Detection
+
+Use the local detector to find exact duplicate files and near-similar text/code
+files across generated packages:
+
+```powershell
+python scripts/detect_similarity.py --root . --threshold 0.95 --min-size 20 --exclude downloads --exclude *.zip
+```
+
+Useful options:
+
+- `--threshold`: Jaccard similarity threshold for near-matches. Default is `0.85`.
+- `--limit`: Max duplicate groups and similar pairs shown in text output. Use `0` for all.
+- `--format json`: Emit a machine-readable report.
+- `--csv report.csv`: Write near-similar pairs to CSV.
+
 ## Architecture
 
 ```text
@@ -47,6 +63,7 @@ samples/open_ai_rag_endpoint_request.json
 samples/open_ai_rag_endpoint_response.example.json
 samples/pinecone_semantic_search_request.json
 samples/pinecone_recommendations_request.json
+samples/pinecone_agent_memory_request.json
 ```
 
 Request shape:
@@ -92,6 +109,24 @@ Pinecone recommendation systems task:
 You can also send `seed_id` instead of `seed_text` when you want recommendations
 similar to a known Pinecone record. The endpoint excludes that seed record from
 the returned `recommendations`.
+
+Pinecone memory for AI agents task:
+
+```json
+{
+  "mode": "agent_memory",
+  "action": "write",
+  "agent_id": "research-agent",
+  "task_id": "pinecone-memory-ci",
+  "memory_type": "episodic",
+  "content": "The agent deployed an AWS Lambda Function URL through CodePipeline, used OpenAI embeddings, stored task memory in Pinecone, and verified retrieval for future AI agent context.",
+  "query": "What did the agent verify during the CodePipeline Pinecone memory task?",
+  "top_k": 3
+}
+```
+
+Use `action: "search"` with `query`, plus optional `agent_id`, `task_id`, or
+`memory_type`, to recall stored memories from the Pinecone memory namespace.
 
 Agent sequence:
 
@@ -147,12 +182,13 @@ The AWS defaults currently filled in are:
 - Region: `us-west-1`
 - Artifact bucket: `mlopswithsagemaker111`
 - CodeStar connection: `arn:aws:codeconnections:us-west-1:659613508664:connection/4ea8863c-728d-450a-8752-251946939b36`
-- GitHub repository: `kalla86840/awspineconesemanticsearch`
+- GitHub repository: `kalla86840/awspineconememoryforaiagents`
 - OpenAI secret ARN: `arn:aws:secretsmanager:us-west-1:659613508664:secret:openai/api-key-6BGXhJ`
 - Pinecone secret ARN: `arn:aws:secretsmanager:us-west-1:659613508664:secret:awspineconeapikey1-kiudra`
 - Pinecone index: `news-demo`
 - Pinecone host: `https://news-demo-4fe9eo0.svc.aped-4627-b74a.pinecone.io`
 - Pinecone namespace: `news`
+- Pinecone memory namespace: `agent-memory`
 - Pinecone upsert on query: `false`, because `news-demo` already contains the news records.
 
 Update an existing secret:
@@ -190,13 +226,14 @@ aws cloudformation deploy \
     ProjectName=open-ai-agentic-rag \
     ArtifactBucketName=mlopswithsagemaker111 \
     CodeStarConnectionArn=arn:aws:codeconnections:us-west-1:659613508664:connection/4ea8863c-728d-450a-8752-251946939b36 \
-    RepositoryId=kalla86840/awspineconesemanticsearch \
+    RepositoryId=kalla86840/awspineconememoryforaiagents \
     BranchName=main \
     OpenAIApiKeySecretArn=arn:aws:secretsmanager:us-west-1:659613508664:secret:openai/api-key-6BGXhJ \
     PineconeApiKeySecretArn=arn:aws:secretsmanager:us-west-1:659613508664:secret:awspineconeapikey1-kiudra \
     PineconeIndexName=news-demo \
     PineconeIndexHost=https://news-demo-4fe9eo0.svc.aped-4627-b74a.pinecone.io \
-    PineconeNamespace=news
+    PineconeNamespace=news \
+    PineconeMemoryNamespace=agent-memory
 ```
 
 Invoke after deployment:
@@ -223,6 +260,14 @@ curl -X POST "$ENDPOINT_URL" \
   -d @samples/pinecone_recommendations_request.json
 ```
 
+Run the Pinecone memory for AI agents task:
+
+```bash
+curl -X POST "$ENDPOINT_URL" \
+  -H "content-type: application/json" \
+  -d @samples/pinecone_agent_memory_request.json
+```
+
 ## Deploy Agentic Hospital RAG Pipeline
 
 ```bash
@@ -235,7 +280,7 @@ aws cloudformation deploy \
     ProjectName=agentic-open-ai \
     ArtifactBucketName=mlopswithsagemaker111 \
     CodeStarConnectionArn=arn:aws:codeconnections:us-west-1:659613508664:connection/4ea8863c-728d-450a-8752-251946939b36 \
-    RepositoryId=kalla86840/awspineconesemanticsearch \
+    RepositoryId=kalla86840/awspineconememoryforaiagents \
     BranchName=main \
     OpenAIApiKeySecretArn=arn:aws:secretsmanager:us-west-1:659613508664:secret:openai/api-key-6BGXhJ \
     OpenAIModel=gpt-5.2

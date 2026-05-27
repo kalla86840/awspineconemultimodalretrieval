@@ -28,6 +28,9 @@ Parameters:
   PineconeNamespace:
     Type: String
     Default: news
+  PineconeMemoryNamespace:
+    Type: String
+    Default: agent-memory
   PineconeCloud:
     Type: String
     Default: aws
@@ -92,6 +95,7 @@ Resources:
           PINECONE_INDEX_NAME: !Ref PineconeIndexName
           PINECONE_INDEX_HOST: !Ref PineconeIndexHost
           PINECONE_NAMESPACE: !Ref PineconeNamespace
+          PINECONE_MEMORY_NAMESPACE: !Ref PineconeMemoryNamespace
           PINECONE_CLOUD: !Ref PineconeCloud
           PINECONE_REGION: !Ref PineconeRegion
           PINECONE_DIMENSION: "1536"

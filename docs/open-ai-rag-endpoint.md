@@ -70,7 +70,7 @@ aws cloudformation deploy \
     ProjectName=open-ai-agentic-rag \
     ArtifactBucketName=mlopswithsagemaker111 \
     CodeStarConnectionArn=arn:aws:codeconnections:us-west-1:659613508664:connection/4ea8863c-728d-450a-8752-251946939b36 \
-    RepositoryId=kalla86840/awspineconesemanticsearch \
+    RepositoryId=kalla86840/awspineconememoryforaiagents \
     BranchName=main \
     OpenAIApiKeySecretArn=arn:aws:secretsmanager:us-west-1:659613508664:secret:openai/api-key-6BGXhJ \
     PineconeApiKeySecretArn=arn:aws:secretsmanager:us-west-1:659613508664:secret:awspineconeapikey1-kiudra \

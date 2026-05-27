@@ -13,6 +13,7 @@ PINECONE_API_KEY_SECRET_ARN = os.environ.get("PINECONE_API_KEY_SECRET_ARN")
 PINECONE_INDEX_NAME = os.environ.get("PINECONE_INDEX_NAME", "news-demo")
 PINECONE_INDEX_HOST = os.environ.get("PINECONE_INDEX_HOST")
 PINECONE_NAMESPACE = os.environ.get("PINECONE_NAMESPACE", "news")
+PINECONE_MEMORY_NAMESPACE = os.environ.get("PINECONE_MEMORY_NAMESPACE", "agent-memory")
 PINECONE_CLOUD = os.environ.get("PINECONE_CLOUD", "aws")
 PINECONE_REGION = os.environ.get("PINECONE_REGION", "us-east-1")
 PINECONE_DIMENSION = int(os.environ.get("PINECONE_DIMENSION", "1536"))
@@ -222,6 +223,78 @@ def recommend_from_pinecone(payload, documents, top_k=TOP_K):
     return recommendations[:top_k], seed_text
 
 
+def _memory_filter(payload):
+    filters = {}
+    for key in ["agent_id", "task_id", "memory_type"]:
+        if payload.get(key):
+            filters[key] = {"$eq": payload[key]}
+    return filters or None
+
+
+def write_agent_memory(payload):
+    from openai import OpenAI
+    client = OpenAI(api_key=get_openai_api_key())
+    index = get_pinecone_index()
+    content = payload.get("content") or payload.get("memory") or payload.get("observation")
+    if not content:
+        raise ValueError("Agent memory write requests must include content, memory, or observation.")
+    agent_id = payload.get("agent_id", "default-agent")
+    task_id = payload.get("task_id", "default-task")
+    memory_type = payload.get("memory_type", "episodic")
+    memory_id = payload.get("memory_id") or f"{agent_id}-{task_id}-{int(time.time() * 1000)}"
+    metadata = {
+        "agent_id": agent_id,
+        "task_id": task_id,
+        "memory_type": memory_type,
+        "content": content,
+        "title": payload.get("title") or f"{agent_id} {memory_type} memory",
+        "source": payload.get("source", "agent_memory"),
+        "created_at": payload.get("created_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    for key, value in (payload.get("metadata") or {}).items():
+        if value is not None:
+            metadata[key] = value
+    vector = embed_texts(client, [content])[0]
+    index.upsert(vectors=[{"id": memory_id, "values": vector, "metadata": metadata}], namespace=PINECONE_MEMORY_NAMESPACE)
+    return {"memory_id": memory_id, "namespace": PINECONE_MEMORY_NAMESPACE, "metadata": metadata}
+
+
+def search_agent_memory(payload, top_k=TOP_K):
+    from openai import OpenAI
+    client = OpenAI(api_key=get_openai_api_key())
+    index = get_pinecone_index()
+    query = payload.get("query") or payload.get("question") or payload.get("content")
+    if not query:
+        raise ValueError("Agent memory search requests must include query, question, or content.")
+    vector = embed_texts(client, [query])[0]
+    query_kwargs = {
+        "vector": vector,
+        "top_k": top_k,
+        "include_metadata": True,
+        "namespace": PINECONE_MEMORY_NAMESPACE,
+    }
+    filters = _memory_filter(payload)
+    if filters:
+        query_kwargs["filter"] = filters
+    result = index.query(**query_kwargs)
+    return pinecone_matches_to_documents(result)
+
+
+def agent_memory_task(payload, top_k=TOP_K):
+    action = payload.get("action", "search")
+    result = {"mode": "agent_memory", "action": action, "retrieval_source": "pinecone", "namespace": PINECONE_MEMORY_NAMESPACE}
+    if action in ["write", "upsert", "remember"]:
+        result["stored_memory"] = write_agent_memory(payload)
+        search_query = payload.get("query") or payload.get("question")
+        if search_query:
+            result["memories"] = search_agent_memory(payload, top_k=top_k)
+    elif action in ["search", "recall"]:
+        result["memories"] = search_agent_memory(payload, top_k=top_k)
+    else:
+        raise ValueError("Agent memory action must be write, upsert, remember, search, or recall.")
+    return result
+
+
 def retrieve_context(question, documents, top_k=TOP_K):
     if ENABLE_PINECONE and (PINECONE_API_KEY_SECRET_ARN or os.environ.get("PINECONE_API_KEY")):
         return semantic_search(question, documents, top_k=top_k), "pinecone"
@@ -269,10 +342,12 @@ def handler(event, context):
             payload = body or {}
         mode = payload.get("mode", "answer")
         question = payload.get("question")
-        if mode != "recommendations" and not question:
+        if mode not in ["recommendations", "agent_memory"] and not question:
             return response(400, {"error": "Request JSON must include a non-empty question."})
         top_k = int(payload.get("top_k", TOP_K))
         requested_agents = payload.get("agents")
+        if mode == "agent_memory":
+            return response(200, agent_memory_task(payload, top_k=top_k))
         if mode == "recommendations":
             documents = load_documents() if PINECONE_UPSERT_ON_QUERY else []
             recommendations, seed_text = recommend_from_pinecone(payload, documents, top_k=top_k)
