@@ -1,5 +1,5 @@
 ﻿AWSTemplateFormatVersion: "2010-09-09"
-Description: Real-time AWS Lambda Function URL endpoint for OpenAI multi-agent RAG inference over a text document.
+Description: Real-time AWS Lambda Function URL endpoint for OpenAI and Pinecone multimodal retrieval.
 
 Parameters:
   ProjectName:
@@ -38,6 +38,9 @@ Parameters:
     Type: String
     Default: news
   PineconeClusteringNamespace:
+    Type: String
+    Default: news
+  PineconeMultimodalNamespace:
     Type: String
     Default: news
   DuplicateScoreThreshold:
@@ -114,6 +117,7 @@ Resources:
           PINECONE_DUPLICATE_NAMESPACE: !Ref PineconeDuplicateNamespace
           PINECONE_CLASSIFICATION_NAMESPACE: !Ref PineconeClassificationNamespace
           PINECONE_CLUSTERING_NAMESPACE: !Ref PineconeClusteringNamespace
+          PINECONE_MULTIMODAL_NAMESPACE: !Ref PineconeMultimodalNamespace
           DUPLICATE_SCORE_THRESHOLD: !Ref DuplicateScoreThreshold
           SIMILARITY_SCORE_THRESHOLD: !Ref SimilarityScoreThreshold
           PINECONE_CLOUD: !Ref PineconeCloud

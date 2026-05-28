@@ -17,6 +17,7 @@ PINECONE_MEMORY_NAMESPACE = os.environ.get("PINECONE_MEMORY_NAMESPACE", "agent-m
 PINECONE_DUPLICATE_NAMESPACE = os.environ.get("PINECONE_DUPLICATE_NAMESPACE", PINECONE_NAMESPACE)
 PINECONE_CLASSIFICATION_NAMESPACE = os.environ.get("PINECONE_CLASSIFICATION_NAMESPACE", PINECONE_NAMESPACE)
 PINECONE_CLUSTERING_NAMESPACE = os.environ.get("PINECONE_CLUSTERING_NAMESPACE", PINECONE_CLASSIFICATION_NAMESPACE)
+PINECONE_MULTIMODAL_NAMESPACE = os.environ.get("PINECONE_MULTIMODAL_NAMESPACE", PINECONE_NAMESPACE)
 PINECONE_CLOUD = os.environ.get("PINECONE_CLOUD", "aws")
 PINECONE_REGION = os.environ.get("PINECONE_REGION", "us-east-1")
 PINECONE_DIMENSION = int(os.environ.get("PINECONE_DIMENSION", "1536"))
@@ -465,6 +466,97 @@ def classify_and_cluster(payload, documents, top_k=TOP_K):
     }
 
 
+def normalize_image_inputs(payload):
+    images = []
+    for key in ["image_url", "image_data", "image"]:
+        if payload.get(key):
+            images.append(payload[key])
+    images.extend(payload.get("image_urls") or [])
+    images.extend(payload.get("images") or [])
+
+    normalized = []
+    for image in images:
+        if isinstance(image, str):
+            normalized.append({"type": "input_image", "image_url": image})
+            continue
+        if not isinstance(image, dict):
+            continue
+        image_url = image.get("image_url") or image.get("url") or image.get("data_url")
+        if not image_url and image.get("base64"):
+            mime_type = image.get("mime_type", "image/jpeg")
+            image_url = f"data:{mime_type};base64,{image['base64']}"
+        if image_url:
+            normalized.append({"type": "input_image", "image_url": image_url})
+    return normalized
+
+
+def caption_images(client, image_inputs, prompt=None):
+    if not image_inputs:
+        return []
+    content = [
+        {
+            "type": "input_text",
+            "text": prompt
+            or "Describe the visual content for a retrieval query. Include objects, text, scene, style, and any domain-specific entities.",
+        }
+    ]
+    content.extend(image_inputs)
+    response = client.responses.create(
+        model=OPENAI_MODEL,
+        input=[{"role": "user", "content": content}],
+        max_output_tokens=min(MAX_OUTPUT_TOKENS, 400),
+    )
+    return [response.output_text.strip()]
+
+
+def build_multimodal_query(payload, image_descriptions):
+    text_parts = [
+        payload.get("question"),
+        payload.get("query"),
+        payload.get("text"),
+        payload.get("caption"),
+        payload.get("description"),
+    ]
+    metadata = payload.get("metadata") or {}
+    if metadata:
+        text_parts.append(json.dumps(metadata, sort_keys=True))
+    text_parts.extend(image_descriptions)
+    query = "\n".join(str(part).strip() for part in text_parts if part and str(part).strip())
+    if not query:
+        raise ValueError("Multimodal retrieval requests must include text, a question, or at least one image.")
+    return query
+
+
+def multimodal_retrieval(payload, documents, top_k=TOP_K):
+    from openai import OpenAI
+    client = OpenAI(api_key=get_openai_api_key())
+    index = get_pinecone_index()
+    if PINECONE_UPSERT_ON_QUERY:
+        upsert_documents_to_pinecone(client, index, documents)
+
+    image_inputs = normalize_image_inputs(payload)
+    image_descriptions = caption_images(client, image_inputs, payload.get("image_prompt"))
+    fused_query = build_multimodal_query(payload, image_descriptions)
+    namespace = payload.get("namespace") or PINECONE_MULTIMODAL_NAMESPACE
+    vector = embed_texts(client, [fused_query])[0]
+    result = index.query(
+        vector=vector,
+        top_k=top_k,
+        include_metadata=True,
+        namespace=namespace,
+    )
+    return {
+        "mode": "multimodal_retrieval",
+        "retrieval_source": "pinecone",
+        "namespace": namespace,
+        "question": payload.get("question") or payload.get("query"),
+        "image_count": len(image_inputs),
+        "image_descriptions": image_descriptions,
+        "fused_query": fused_query,
+        "retrieved_context": pinecone_matches_to_documents(result),
+    }
+
+
 def _memory_filter(payload):
     filters = {}
     for key in ["agent_id", "task_id", "memory_type"]:
@@ -584,7 +676,7 @@ def handler(event, context):
             payload = body or {}
         mode = payload.get("mode", "answer")
         question = payload.get("question")
-        pinecone_task_modes = ["recommendations", "agent_memory", "duplicate_similarity", "classification", "clustering", "classification_clustering"]
+        pinecone_task_modes = ["recommendations", "agent_memory", "duplicate_similarity", "classification", "clustering", "classification_clustering", "multimodal_retrieval"]
         if mode not in pinecone_task_modes and not question:
             return response(400, {"error": "Request JSON must include a non-empty question."})
         top_k = int(payload.get("top_k", TOP_K))
@@ -603,6 +695,9 @@ def handler(event, context):
                 result.pop("predicted_label", None)
                 result.pop("label_scores", None)
             return response(200, result)
+        if mode == "multimodal_retrieval":
+            documents = load_documents() if PINECONE_UPSERT_ON_QUERY else []
+            return response(200, multimodal_retrieval(payload, documents, top_k=top_k))
         if mode == "recommendations":
             documents = load_documents() if PINECONE_UPSERT_ON_QUERY else []
             recommendations, seed_text = recommend_from_pinecone(payload, documents, top_k=top_k)

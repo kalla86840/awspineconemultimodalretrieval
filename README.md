@@ -63,6 +63,7 @@ samples/open_ai_rag_endpoint_request.json
 samples/open_ai_rag_endpoint_response.example.json
 samples/pinecone_chatbot_assistant_rag_request.json
 samples/pinecone_semantic_search_request.json
+samples/pinecone_multimodal_retrieval_request.json
 samples/pinecone_recommendations_request.json
 samples/pinecone_agent_memory_request.json
 samples/pinecone_duplicate_similarity_request.json
@@ -91,6 +92,27 @@ Pinecone semantic search-only task:
   "top_k": 5
 }
 ```
+
+Pinecone multimodal retrieval task:
+
+```json
+{
+  "mode": "multimodal_retrieval",
+  "question": "Find Pinecone records related to this image and edge cloud earnings context.",
+  "image_urls": [
+    "https://images.unsplash.com/photo-1558494949-ef010cbdcc31"
+  ],
+  "metadata": {
+    "domain": "edge cloud",
+    "ticker": "EGIO"
+  },
+  "top_k": 5
+}
+```
+
+The endpoint uses OpenAI vision to describe submitted images, fuses those image
+descriptions with the text query and metadata, embeds the fused query, and
+retrieves matching records from Pinecone.
 
 Pinecone RAG for chatbots and assistants task:
 
@@ -233,7 +255,7 @@ The AWS defaults currently filled in are:
 - Region: `us-west-1`
 - Artifact bucket: `mlopswithsagemaker111`
 - CodeStar connection: `arn:aws:codeconnections:us-west-1:659613508664:connection/4ea8863c-728d-450a-8752-251946939b36`
-- GitHub repository: `kalla86840/awspineconeclassificationandclusteringsupport`
+- GitHub repository: `kalla86840/awspineconemultimodalretrieval`
 - OpenAI secret ARN: `arn:aws:secretsmanager:us-west-1:659613508664:secret:openai/api-key-6BGXhJ`
 - Pinecone secret ARN: `arn:aws:secretsmanager:us-west-1:659613508664:secret:awspineconeapikey1-kiudra`
 - Pinecone index: `news-demo`
@@ -243,6 +265,7 @@ The AWS defaults currently filled in are:
 - Pinecone duplicate namespace: `news`
 - Pinecone classification namespace: `news`
 - Pinecone clustering namespace: `news`
+- Pinecone multimodal namespace: `news`
 - Duplicate score threshold: `0.98`
 - Similarity score threshold: `0.85`
 - Pinecone upsert on query: `false`, because `news-demo` already contains the news records.
@@ -293,7 +316,7 @@ aws cloudformation deploy \
     ProjectName=open-ai-agentic-rag \
     ArtifactBucketName=mlopswithsagemaker111 \
     CodeStarConnectionArn=arn:aws:codeconnections:us-west-1:659613508664:connection/4ea8863c-728d-450a-8752-251946939b36 \
-    RepositoryId=kalla86840/awspineconeclassificationandclusteringsupport \
+    RepositoryId=kalla86840/awspineconemultimodalretrieval \
     BranchName=main \
     OpenAIApiKeySecretArn=arn:aws:secretsmanager:us-west-1:659613508664:secret:openai/api-key-6BGXhJ \
     PineconeApiKeySecretArn=arn:aws:secretsmanager:us-west-1:659613508664:secret:awspineconeapikey1-kiudra \
@@ -304,6 +327,7 @@ aws cloudformation deploy \
     PineconeDuplicateNamespace=news \
     PineconeClassificationNamespace=news \
     PineconeClusteringNamespace=news \
+    PineconeMultimodalNamespace=news \
     DuplicateScoreThreshold=0.98 \
     SimilarityScoreThreshold=0.85
 ```
@@ -322,6 +346,14 @@ Run the Pinecone semantic search task:
 curl -X POST "$ENDPOINT_URL" \
   -H "content-type: application/json" \
   -d @samples/pinecone_semantic_search_request.json
+```
+
+Run the Pinecone multimodal retrieval task:
+
+```bash
+curl -X POST "$ENDPOINT_URL" \
+  -H "content-type: application/json" \
+  -d @samples/pinecone_multimodal_retrieval_request.json
 ```
 
 Run the Pinecone recommendation systems task:
@@ -368,7 +400,7 @@ aws cloudformation deploy \
     ProjectName=agentic-open-ai \
     ArtifactBucketName=mlopswithsagemaker111 \
     CodeStarConnectionArn=arn:aws:codeconnections:us-west-1:659613508664:connection/4ea8863c-728d-450a-8752-251946939b36 \
-    RepositoryId=kalla86840/awspineconeclassificationandclusteringsupport \
+    RepositoryId=kalla86840/awspineconemultimodalretrieval \
     BranchName=main \
     OpenAIApiKeySecretArn=arn:aws:secretsmanager:us-west-1:659613508664:secret:openai/api-key-6BGXhJ \
     OpenAIModel=gpt-5.2

@@ -13,7 +13,7 @@
   },
   {
     "ParameterKey": "RepositoryId",
-    "ParameterValue": "kalla86840/awspineconeduplicateorsimilaritydetection"
+    "ParameterValue": "kalla86840/awspineconemultimodalretrieval"
   },
   {
     "ParameterKey": "BranchName",
@@ -45,6 +45,18 @@
   },
   {
     "ParameterKey": "PineconeDuplicateNamespace",
+    "ParameterValue": "news"
+  },
+  {
+    "ParameterKey": "PineconeClassificationNamespace",
+    "ParameterValue": "news"
+  },
+  {
+    "ParameterKey": "PineconeClusteringNamespace",
+    "ParameterValue": "news"
+  },
+  {
+    "ParameterKey": "PineconeMultimodalNamespace",
     "ParameterValue": "news"
   },
   {

@@ -17,6 +17,7 @@ env:
     PINECONE_DUPLICATE_NAMESPACE: news
     PINECONE_CLASSIFICATION_NAMESPACE: news
     PINECONE_CLUSTERING_NAMESPACE: news
+    PINECONE_MULTIMODAL_NAMESPACE: news
     DUPLICATE_SCORE_THRESHOLD: "0.98"
     SIMILARITY_SCORE_THRESHOLD: "0.85"
 
@@ -56,6 +57,7 @@ phases:
             PineconeDuplicateNamespace="$PINECONE_DUPLICATE_NAMESPACE" \
             PineconeClassificationNamespace="$PINECONE_CLASSIFICATION_NAMESPACE" \
             PineconeClusteringNamespace="$PINECONE_CLUSTERING_NAMESPACE" \
+            PineconeMultimodalNamespace="$PINECONE_MULTIMODAL_NAMESPACE" \
             DuplicateScoreThreshold="$DUPLICATE_SCORE_THRESHOLD" \
             SimilarityScoreThreshold="$SIMILARITY_SCORE_THRESHOLD" \
             OpenAIModel="$OPENAI_MODEL"
@@ -63,6 +65,8 @@ phases:
       - ENDPOINT_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='EndpointUrl'].OutputValue | [0]" --output text)
       - 'curl -sS -f -X POST "$ENDPOINT_URL" -H "content-type: application/json" -d @samples/pinecone_semantic_search_request.json -o pinecone-semantic-search-response.json'
       - python -c "import json; body=json.load(open('pinecone-semantic-search-response.json')); assert body.get('retrieval_source') == 'pinecone' and body.get('retrieved_context'), body; print('Pinecone semantic search task passed')"
+      - 'curl -sS -f -X POST "$ENDPOINT_URL" -H "content-type: application/json" -d @samples/pinecone_multimodal_retrieval_request.json -o pinecone-multimodal-retrieval-response.json'
+      - python -c "import json; body=json.load(open('pinecone-multimodal-retrieval-response.json')); assert body.get('mode') == 'multimodal_retrieval' and body.get('retrieval_source') == 'pinecone' and body.get('retrieved_context'), body; print('Pinecone multimodal retrieval task passed')"
       - 'curl -sS -f -X POST "$ENDPOINT_URL" -H "content-type: application/json" -d @samples/pinecone_chatbot_assistant_rag_request.json -o pinecone-chatbot-assistant-rag-response.json'
       - python -c "import json; body=json.load(open('pinecone-chatbot-assistant-rag-response.json')); assert body.get('mode') == 'chatbot_rag' and body.get('retrieval_source') == 'pinecone' and body.get('answer'), body; print('Pinecone RAG for chatbots and assistants task passed')"
       - 'curl -sS -f -X POST "$ENDPOINT_URL" -H "content-type: application/json" -d @samples/pinecone_recommendations_request.json -o pinecone-recommendations-response.json'
@@ -80,6 +84,7 @@ artifacts:
   files:
     - open-ai-agentic-rag-endpoint.zip
     - pinecone-semantic-search-response.json
+    - pinecone-multimodal-retrieval-response.json
     - pinecone-chatbot-assistant-rag-response.json
     - pinecone-recommendations-response.json
     - pinecone-agent-memory-response.json
